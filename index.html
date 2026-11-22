@@ -99,6 +99,7 @@
 
   .section { background: var(--card); border-radius: var(--radius); padding: 14px; margin-bottom: 14px; border: 1px solid var(--line); }
   .section h3 { margin: 0 0 10px; font-size: 15px; }
+  .hint { color: var(--muted); font-size: 13px; line-height: 1.6; margin: -4px 0 12px; }
   .field { margin-bottom: 12px; }
   .field label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
   .field input, .field select, .field textarea { width: 100%; background: var(--card2); color: var(--text);
@@ -150,14 +151,11 @@
   </div>
   <div class="section">
     <h3>🚚 ព័ត៌មានដឹកជញ្ជូន</h3>
+    <p class="hint">💬 ហាងនឹងទាក់ទងអ្នកតាម Telegram ដើម្បីបញ្ជាក់អាសយដ្ឋានដឹកជញ្ជូន។</p>
     <div class="field"><label for="fName">ឈ្មោះអ្នកទទួល *</label>
       <input id="fName" maxlength="80" autocomplete="name"><div class="err" id="eName"></div></div>
-    <div class="field"><label for="fPhone">លេខទូរស័ព្ទ *</label>
-      <input id="fPhone" type="tel" inputmode="tel" maxlength="16" placeholder="012345678" autocomplete="tel"><div class="err" id="ePhone"></div></div>
     <div class="field"><label for="fProvince">ខេត្ត / រាជធានី *</label>
       <select id="fProvince"></select><div class="err" id="eProvince"></div></div>
-    <div class="field"><label for="fAddress">អាសយដ្ឋានលម្អិត *</label>
-      <textarea id="fAddress" maxlength="300" placeholder="ផ្ទះលេខ ផ្លូវ ភូមិ សង្កាត់ ខណ្ឌ..."></textarea><div class="err" id="eAddress"></div></div>
     <div class="field"><label for="fNote">កំណត់សម្គាល់ (ជម្រើស)</label>
       <input id="fNote" maxlength="300" placeholder="ឧ. ដឹកពេលល្ងាច"></div>
   </div>
@@ -170,7 +168,7 @@
     <div class="big">✅</div>
     <h2>កុម្ម៉ង់បានជោគជ័យ!</h2>
     <div class="oid latin" id="doneId"></div>
-    <p id="doneText">វិក្កយបត្រ និង KHQR ត្រូវបានផ្ញើទៅ Chat របស់អ្នក។<br>សូមស្កេនបង់ប្រាក់ ហើយផ្ញើរូបវិក្កយបត្រមកវិញ។</p>
+    <p id="doneText">វិក្កយបត្រ និង KHQR ត្រូវបានផ្ញើទៅ Chat របស់អ្នក។<br>សូមស្កេនបង់ប្រាក់ ហើយផ្ញើរូបវិក្កយបត្រមកវិញ។<br>ហាងនឹងទាក់ទងអ្នកតាម Telegram ដើម្បីបញ្ជាក់អាសយដ្ឋាន។</p>
     <button class="btn" id="btnClose">ត្រឡប់ទៅ Chat</button>
     <div style="height:10px"></div>
     <button class="btn ghost" id="btnMore">ទិញបន្ថែម</button>
@@ -565,17 +563,7 @@
     }
     var pr = state.profile || {};
     if (!$('fName').value) $('fName').value = pr.full_name || '';
-    if (!$('fPhone').value) $('fPhone').value = pr.phone_number || '';
-    if (!$('fAddress').value) $('fAddress').value = pr.delivery_address || '';
     if (!sel.value && pr.city_province && PROVINCES.indexOf(pr.city_province) >= 0) sel.value = pr.city_province;
-  }
-
-  function normalizePhone(v) {
-    var p = String(v || '').replace(/[\s\-().]/g, '');
-    if (p.indexOf('+855') === 0) p = '0' + p.slice(4);
-    else if (p.indexOf('855') === 0 && p.length >= 11) p = '0' + p.slice(3);
-    if (p.indexOf('00') === 0) p = p.slice(1);
-    return /^0[1-9]\d{7,8}$/.test(p) ? p : '';
   }
 
   function validate() {
@@ -583,9 +571,7 @@
     function set(id, msg) { $(id).textContent = msg || ''; if (msg) ok = false; }
     var name = $('fName').value.trim();
     set('eName', name.length < 2 ? 'សូមបញ្ចូលឈ្មោះ' : '');
-    set('ePhone', normalizePhone($('fPhone').value) ? '' : 'លេខទូរស័ព្ទមិនត្រឹមត្រូវ (ឧ. 012345678)');
     set('eProvince', $('fProvince').value ? '' : 'សូមជ្រើសរើសខេត្ត/រាជធានី');
-    set('eAddress', $('fAddress').value.trim().length < 5 ? 'សូមបញ្ចូលអាសយដ្ឋានឲ្យបានច្បាស់' : '');
     return ok;
   }
 
@@ -611,9 +597,7 @@
       items: items,
       customer: {
         full_name: $('fName').value.trim(),
-        phone_number: $('fPhone').value.trim(),
-        city_province: $('fProvince').value,
-        delivery_address: $('fAddress').value.trim()
+        city_province: $('fProvince').value
       },
       note: $('fNote').value.trim()
     }).then(function (res) {
@@ -693,7 +677,7 @@
   };
   $('btnClose').onclick = function () { try { tg.close(); } catch (e) { showView('home'); } };
   $('btnMore').onclick = function () { showView('home'); renderGrid(); refreshCatalog().catch(function () {}); };
-  ['fName', 'fPhone', 'fAddress', 'fProvince'].forEach(function (id) {
+  ['fName', 'fProvince'].forEach(function (id) {
     $(id).addEventListener('input', function () { var e = $('e' + id.slice(1)); if (e) e.textContent = ''; });
   });
 
