@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="km">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Baby Shop</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@400;600;700&family=Roboto+Slab:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #17212b; --card: #232e3c; --card2: #1c2733; --line: #2f3b4a;
+    --text: #f5f7fa; --muted: #8a99ab; --accent: #ff5c8a; --accent2: #ff7aa0;
+    --ok: #3ccf91; --warn: #ffb347; --danger: #ff6b6b; --radius: 16px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: 'Kantumruy Pro', 'Roboto Slab', system-ui, sans-serif; font-size: 15px; }
+  button { font-family: inherit; }
+  [hidden] { display: none !important; }
+  .latin { font-family: 'Roboto Slab', 'Kantumruy Pro', serif; }
+
+  header.top { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 14px 16px 10px;
+    display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--line); }
+  header.top .logo { width: 34px; height: 34px; border-radius: 10px; background: var(--accent);
+    display: grid; place-items: center; font-size: 18px; }
+  header.top h1 { font-size: 17px; margin: 0; font-weight: 700; }
+  header.top .sub { font-size: 12px; color: var(--muted); }
+  .back { background: var(--card); border: 0; color: var(--text); width: 34px; height: 34px;
+    border-radius: 10px; font-size: 18px; cursor: pointer; }
+
+  main { padding: 14px 14px 110px; }
+  .tabs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 10px; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { flex: none; padding: 7px 14px; border-radius: 999px; background: var(--card); color: var(--muted);
+    border: 1px solid var(--line); font-size: 13px; cursor: pointer; }
+  .tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  @media (min-width: 560px) { .grid { grid-template-columns: repeat(3, 1fr); } }
+  .card { background: var(--card); border-radius: var(--radius); overflow: hidden; cursor: pointer;
+    border: 1px solid var(--line); position: relative; transition: transform .1s; }
+  .card:active { transform: scale(.98); }
+  .card .img { aspect-ratio: 1/1; background: #fff; display: grid; place-items: center; overflow: hidden; }
+  .card .img img { width: 100%; height: 100%; object-fit: contain; }
+  .ph { font-size: 44px; }
+  .card .info { padding: 10px 12px 12px; }
+  .card .name { font-weight: 700; font-size: 14px; line-height: 1.3; min-height: 36px; }
+  .card .price { color: var(--accent); font-weight: 700; margin-top: 4px; font-size: 14px; }
+  .card .meta { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .badge { position: absolute; top: 8px; right: 8px; background: var(--accent); color: #fff; border-radius: 999px;
+    min-width: 24px; height: 24px; padding: 0 7px; font-size: 13px; font-weight: 700; display: grid; place-items: center; }
+
+  .state { text-align: center; color: var(--muted); padding: 60px 20px; line-height: 1.7; }
+  .spinner { width: 34px; height: 34px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--accent);
+    animation: spin .8s linear infinite; margin: 0 auto 14px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .cartbar { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
+    background: linear-gradient(transparent, var(--bg) 30%); z-index: 6; }
+  .btn { width: 100%; border: 0; border-radius: 14px; background: var(--accent); color: #fff; font-size: 16px;
+    font-weight: 700; padding: 15px; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 8px; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .btn.ghost { background: var(--card); color: var(--text); }
+
+  .backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 10; }
+  .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 11; background: var(--card); max-height: 88vh;
+    border-radius: 20px 20px 0 0; display: flex; flex-direction: column; animation: up .2s ease-out; }
+  @keyframes up { from { transform: translateY(40px); opacity: .4; } }
+  .sheet .grab { width: 40px; height: 4px; background: var(--line); border-radius: 4px; margin: 8px auto 2px; }
+  .sheet .head { display: flex; align-items: center; gap: 12px; padding: 8px 16px 12px; border-bottom: 1px solid var(--line); }
+  .sheet .head .thumb { width: 48px; height: 48px; border-radius: 12px; background: #fff; overflow: hidden; flex: none;
+    display: grid; place-items: center; }
+  .sheet .head .thumb img { width: 100%; height: 100%; object-fit: contain; }
+  .sheet .head h2 { flex: 1; font-size: 16px; margin: 0; }
+  .x { width: 34px; height: 34px; border-radius: 50%; border: 0; background: var(--card2); color: var(--text); font-size: 18px; cursor: pointer; }
+  .sheet .list { overflow-y: auto; padding: 0 16px; flex: 1; }
+  .sheet .desc { color: var(--muted); font-size: 13px; padding: 10px 0 0; line-height: 1.5; }
+  .row { display: flex; align-items: center; gap: 12px; padding: 13px 0; border-bottom: 1px solid var(--line); }
+  .row:last-child { border-bottom: 0; }
+  .row .rthumb { width: 40px; height: 40px; border-radius: 8px; background: #fff; overflow: hidden; flex: none;
+    display: grid; place-items: center; font-size: 20px; }
+  .row .rthumb img { width: 100%; height: 100%; object-fit: contain; }
+  .row .lbl { flex: 1; min-width: 0; }
+  .row .lbl b { display: block; font-size: 15px; }
+  .row .lbl small { color: var(--muted); font-size: 13px; }
+  .row .lbl small.oos { color: var(--danger); font-weight: 600; }
+  .stepper { display: flex; align-items: center; gap: 10px; flex: none; }
+  .stepper button { width: 36px; height: 36px; border-radius: 10px; border: 0; font-size: 20px; font-weight: 700;
+    cursor: pointer; display: grid; place-items: center; }
+  .stepper .minus { background: var(--card2); color: var(--text); }
+  .stepper .plus { background: var(--accent); color: #fff; }
+  .stepper button:disabled { opacity: .35; cursor: default; }
+  .stepper .q { min-width: 22px; text-align: center; font-weight: 700; }
+  .sheet .foot { padding: 12px 16px calc(14px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); }
+  .sheet .sum { margin-bottom: 10px; font-weight: 600; }
+  .sheet .sum .amt { color: var(--accent); }
+
+  .section { background: var(--card); border-radius: var(--radius); padding: 14px; margin-bottom: 14px; border: 1px solid var(--line); }
+  .section h3 { margin: 0 0 10px; font-size: 15px; }
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  .field input, .field select, .field textarea { width: 100%; background: var(--card2); color: var(--text);
+    border: 1px solid var(--line); border-radius: 12px; padding: 12px; font: inherit; outline: none; }
+  .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--accent); }
+  .field textarea { resize: vertical; min-height: 70px; }
+  .field .err { color: var(--danger); font-size: 12px; margin-top: 4px; }
+  .totals div { display: flex; justify-content: space-between; padding: 4px 0; color: var(--muted); }
+  .totals div.grand { color: var(--text); font-weight: 700; font-size: 17px; border-top: 1px solid var(--line);
+    margin-top: 6px; padding-top: 10px; }
+  .totals div.grand span:last-child { color: var(--accent); }
+  .totals .khr { text-align: right; color: var(--muted); font-size: 13px; }
+  .alert { background: rgba(255,107,107,.12); border: 1px solid rgba(255,107,107,.4); color: #ffd0d0; border-radius: 12px;
+    padding: 12px; margin-bottom: 14px; white-space: pre-line; font-size: 14px; }
+  .done { text-align: center; padding: 50px 16px; }
+  .done .big { font-size: 64px; }
+  .done h2 { margin: 10px 0 6px; }
+  .done p { color: var(--muted); line-height: 1.7; }
+  .done .oid { display: inline-block; background: var(--card); padding: 8px 14px; border-radius: 10px; margin: 8px 0 18px; font-weight: 700; }
+  #toast { position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); background: #000c; color: #fff;
+    padding: 10px 16px; border-radius: 12px; font-size: 14px; z-index: 20; opacity: 0; transition: opacity .2s; pointer-events: none;
+    max-width: 90vw; text-align: center; }
+  #toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<header class="top">
+  <button class="back" id="btnBack" hidden aria-label="back">‹</button>
+  <div class="logo" id="logo">👶</div>
+  <div>
+    <h1 id="shopName">Baby Shop</h1>
+    <div class="sub" id="shopSub">ជ្រើសផលិតផល និងទំហំ</div>
+  </div>
+</header>
+
+<!-- HOME: catalog -->
+<main id="viewHome">
+  <div class="state" id="homeState"><div class="spinner"></div>កំពុងផ្ទុកផលិតផល...</div>
+  <div class="tabs" id="tabs" hidden></div>
+  <div class="grid" id="grid"></div>
+</main>
+
+<!-- CHECKOUT -->
+<main id="viewCheckout" hidden>
+  <div class="alert" id="checkoutAlert" hidden></div>
+  <div class="section">
+    <h3>🛒 កន្ត្រករបស់អ្នក</h3>
+    <div id="cartList"></div>
+  </div>
+  <div class="section">
+    <h3>🚚 ព័ត៌មានដឹកជញ្ជូន</h3>
+    <div class="field"><label for="fName">ឈ្មោះអ្នកទទួល *</label>
+      <input id="fName" maxlength="80" autocomplete="name"><div class="err" id="eName"></div></div>
+    <div class="field"><label for="fPhone">លេខទូរស័ព្ទ *</label>
+      <input id="fPhone" type="tel" inputmode="tel" maxlength="16" placeholder="012345678" autocomplete="tel"><div class="err" id="ePhone"></div></div>
+    <div class="field"><label for="fProvince">ខេត្ត / រាជធានី *</label>
+      <select id="fProvince"></select><div class="err" id="eProvince"></div></div>
+    <div class="field"><label for="fAddress">អាសយដ្ឋានលម្អិត *</label>
+      <textarea id="fAddress" maxlength="300" placeholder="ផ្ទះលេខ ផ្លូវ ភូមិ សង្កាត់ ខណ្ឌ..."></textarea><div class="err" id="eAddress"></div></div>
+    <div class="field"><label for="fNote">កំណត់សម្គាល់ (ជម្រើស)</label>
+      <input id="fNote" maxlength="300" placeholder="ឧ. ដឹកពេលល្ងាច"></div>
+  </div>
+  <div class="section totals" id="totals"></div>
+</main>
+
+<!-- DONE -->
+<main id="viewDone" hidden>
+  <div class="done">
+    <div class="big">✅</div>
+    <h2>កុម្ម៉ង់បានជោគជ័យ!</h2>
+    <div class="oid latin" id="doneId"></div>
+    <p id="doneText">វិក្កយបត្រ និង KHQR ត្រូវបានផ្ញើទៅ Chat របស់អ្នក។<br>សូមស្កេនបង់ប្រាក់ ហើយផ្ញើរូបវិក្កយបត្រមកវិញ។</p>
+    <button class="btn" id="btnClose">ត្រឡប់ទៅ Chat</button>
+    <div style="height:10px"></div>
+    <button class="btn ghost" id="btnMore">ទិញបន្ថែម</button>
+  </div>
+</main>
+
+<div class="cartbar" id="cartbar" hidden>
+  <button class="btn" id="btnCartbar"></button>
+</div>
+
+<div class="backdrop" id="backdrop" hidden></div>
+<section class="sheet" id="sheet" hidden role="dialog" aria-modal="true">
+  <div class="grab"></div>
+  <div class="head">
+    <div class="thumb" id="sheetThumb"></div>
+    <h2 class="latin" id="sheetTitle"></h2>
+    <button class="x" id="sheetClose" aria-label="close">✕</button>
+  </div>
+  <div class="list" id="sheetList"></div>
+  <div class="foot">
+    <div class="sum" id="sheetSum"></div>
+    <button class="btn" id="sheetDone">រួចរាល់</button>
+  </div>
+</section>
+
+<div id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ------------------------------ Setup ------------------------------ */
+  var tg = window.Telegram && window.Telegram.WebApp;
+  var params = new URLSearchParams(location.search);
+  var API = params.get('api') || '';
+  var API_VALID = /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(API);
+  var PROVINCES = ['ភ្នំពេញ', 'កណ្តាល', 'កំពង់ចាម', 'កំពង់ឆ្នាំង', 'កំពង់ស្ពឺ', 'កំពង់ធំ', 'កំពត', 'កែប', 'កោះកុង',
+    'ក្រចេះ', 'តាកែវ', 'ត្បូងឃ្មុំ', 'បន្ទាយមានជ័យ', 'បាត់ដំបង', 'ប៉ៃលិន', 'ពោធិ៍សាត់', 'ព្រះវិហារ', 'ព្រះសីហនុ',
+    'ព្រៃវែង', 'មណ្ឌលគិរី', 'រតនគិរី', 'សៀមរាប', 'ស្ទឹងត្រែង', 'ស្វាយរៀង', 'ឧត្តរមានជ័យ'];
+  var ERROR_KH = 'សូមអភ័យទោស ប្រព័ន្ធមានជួបបញ្ហាបច្ចេកទេស សូមព្យាយាមម្តងទៀត។';
+
+  var state = {
+    products: [], byId: {}, groups: [], settings: { exchange_rate: 4100, delivery_fee_usd: 0, free_delivery_min_usd: 0 },
+    profile: {}, cart: {}, orderKey: null, submitting: false, view: 'home', openGroup: null, filter: 'all'
+  };
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined && text !== null) e.textContent = text;
+    return e;
+  }
+
+  function haptic(type) {
+    try { if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred(type || 'light'); } catch (e) {}
+  }
+
+  function toast(msg) {
+    var t = $('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toast._t);
+    toast._t = setTimeout(function () { t.classList.remove('show'); }, 2600);
+  }
+
+  function money(n) {
+    var x = Number(n);
+    return (n === null || n === undefined || !isFinite(x)) ? 'N/A' : '$' + x.toFixed(2);
+  }
+
+  function khr(n) {
+    var x = Number(n);
+    if (!isFinite(x)) return 'N/A';
+    return String(Math.round(x)).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + ' ៛';
+  }
+
+  function cents(n) { return Math.round(Number(n) * 100); }
+
+  function uuid() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return 'k' + Date.now().toString(36) + Math.random().toString(36).slice(2, 12);
+  }
+
+  function imgOrPlaceholder(container, url, emoji) {
+    container.innerHTML = '';
+    if (url) {
+      var img = el('img');
+      img.alt = '';
+      img.loading = 'lazy';
+      img.src = url;
+      img.onerror = function () { container.innerHTML = ''; container.appendChild(el('span', 'ph', emoji)); };
+      container.appendChild(img);
+    } else {
+      container.appendChild(el('span', 'ph', emoji));
+    }
+  }
+
+  function emojiFor(category) {
+    if (/diaper/i.test(category)) return '🧷';
+    if (/feminine/i.test(category)) return '🌸';
+    return '🧴';
+  }
+
+  function saveCart() {
+    try { sessionStorage.setItem('lk_cart', JSON.stringify({ cart: state.cart, key: state.orderKey })); } catch (e) {}
+  }
+
+  function loadCart() {
+    try {
+      var s = JSON.parse(sessionStorage.getItem('lk_cart') || 'null');
+      if (s && s.cart) { state.cart = s.cart; state.orderKey = s.key || null; }
+    } catch (e) {}
+  }
+
+  /* ------------------------------ API -------------------------------- */
+  function api(payload) {
+    payload.initData = tg ? tg.initData : '';
+    return fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload),
+      redirect: 'follow'
+    }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    });
+  }
+
+  /* ---------------------------- Catalog ------------------------------ */
+  function buildCatalog(products) {
+    state.products = products;
+    state.byId = {};
+    var groups = [];
+    var gIndex = {};
+    products.forEach(function (p) {
+      state.byId[p.id] = p;
+      if (!(p.group in gIndex)) {
+        gIndex[p.group] = groups.length;
+        groups.push({ name: p.group, category: p.category, items: [], image: '', unit: p.unit });
+      }
+      var g = groups[gIndex[p.group]];
+      g.items.push(p);
+      if (!g.image && p.image) g.image = p.image;
+    });
+    state.groups = groups;
+    // Drop cart lines for products that no longer exist / are out of stock.
+    Object.keys(state.cart).forEach(function (id) {
+      var p = state.byId[id];
+      if (!p || p.price === null) delete state.cart[id];
+      else if (p.stock !== null && state.cart[id] > p.stock) state.cart[id] = Math.max(0, p.stock);
+      if (state.cart[id] === 0) delete state.cart[id];
+    });
+  }
+
+  function groupQty(g) {
+    return g.items.reduce(function (s, p) { return s + (state.cart[p.id] || 0); }, 0);
+  }
+
+  function groupCents(g) {
+    return g.items.reduce(function (s, p) { return s + (state.cart[p.id] || 0) * cents(p.price || 0); }, 0);
+  }
+
+  function priceRange(g) {
+    var prices = g.items.map(function (p) { return p.price; }).filter(function (x) { return x !== null; });
+    if (!prices.length) return 'N/A';
+    var lo = Math.min.apply(null, prices), hi = Math.max.apply(null, prices);
+    return lo === hi ? money(lo) : money(lo) + ' – ' + money(hi);
+  }
+
+  function renderTabs() {
+    var cats = [];
+    state.groups.forEach(function (g) { if (g.category && cats.indexOf(g.category) < 0) cats.push(g.category); });
+    var tabs = $('tabs');
+    tabs.innerHTML = '';
+    if (cats.length < 2) { tabs.hidden = true; return; }
+    tabs.hidden = false;
+    var labels = { 'Diapers': 'ខោទឹកនោម', 'Baby Care': 'ថែទាំកូនតូច', 'Feminine Care': 'សំឡីអនាម័យ' };
+    ['all'].concat(cats).forEach(function (c) {
+      var b = el('button', 'tab' + (state.filter === c ? ' active' : ''), c === 'all' ? 'ទាំងអស់' : (labels[c] || c));
+      b.onclick = function () { state.filter = c; renderTabs(); renderGrid(); };
+      tabs.appendChild(b);
+    });
+  }
+
+  function renderGrid() {
+    var grid = $('grid');
+    grid.innerHTML = '';
+    state.groups.filter(function (g) { return state.filter === 'all' || g.category === state.filter; })
+      .forEach(function (g) {
+        var card = el('div', 'card');
+        var img = el('div', 'img');
+        imgOrPlaceholder(img, g.image, emojiFor(g.category));
+        card.appendChild(img);
+        var info = el('div', 'info');
+        info.appendChild(el('div', 'name latin', g.name));
+        info.appendChild(el('div', 'price', priceRange(g)));
+        var allOut = g.items.every(function (p) { return p.stock !== null && p.stock <= 0; });
+        info.appendChild(el('div', 'meta', allOut ? 'អស់ពីស្តុក' :
+          (g.items.length > 1 ? g.items.length + ' ជម្រើស' : '1 ជម្រើស') + ' · ' + (g.unit || '')));
+        card.appendChild(info);
+        var q = groupQty(g);
+        if (q > 0) card.appendChild(el('div', 'badge', String(q)));
+        card.onclick = function () { openSheet(g); };
+        grid.appendChild(card);
+      });
+  }
+
+  function cartTotals() {
+    var qty = 0, sub = 0;
+    Object.keys(state.cart).forEach(function (id) {
+      var p = state.byId[id];
+      if (!p) return;
+      qty += state.cart[id];
+      sub += state.cart[id] * cents(p.price || 0);
+    });
+    var s = state.settings;
+    var freeMin = cents(s.free_delivery_min_usd || 0);
+    var fee = qty === 0 ? 0 : ((freeMin > 0 && sub >= freeMin) ? 0 : cents(s.delivery_fee_usd || 0));
+    var total = sub + fee;
+    return { qty: qty, sub: sub / 100, fee: fee / 100, total: total / 100,
+      khr: Math.round((total / 100) * Number(s.exchange_rate || 4100) / 100) * 100,
+      freeMin: freeMin / 100 };
+  }
+
+  function renderCartbar() {
+    var t = cartTotals();
+    var bar = $('cartbar');
+    var btn = $('btnCartbar');
+    if (state.view === 'home') {
+      bar.hidden = t.qty === 0;
+      btn.disabled = false;
+      btn.textContent = '🛒 មើលកន្ត្រក · ' + t.qty + ' · ' + money(t.sub);
+    } else if (state.view === 'checkout') {
+      bar.hidden = false;
+      btn.disabled = state.submitting || t.qty === 0;
+      btn.textContent = state.submitting ? 'កំពុងបញ្ជូន...' : '✅ បញ្ជាក់ការកុម្ម៉ង់ · ' + money(t.total);
+    } else {
+      bar.hidden = true;
+    }
+  }
+
+  function setQty(id, q) {
+    var p = state.byId[id];
+    if (!p) return;
+    var max = p.stock === null ? 999 : Math.max(0, p.stock);
+    q = Math.max(0, Math.min(max, q));
+    if (q === 0) delete state.cart[id]; else state.cart[id] = q;
+    saveCart();
+  }
+
+  function stepper(p, onChange) {
+    var wrap = el('div', 'stepper');
+    var minus = el('button', 'minus', '−');
+    var q = el('span', 'q latin', String(state.cart[p.id] || 0));
+    var plus = el('button', 'plus', '+');
+    var out = p.stock !== null && p.stock <= 0;
+    var noPrice = p.price === null;
+    function sync() {
+      var cur = state.cart[p.id] || 0;
+      q.textContent = String(cur);
+      minus.disabled = cur <= 0;
+      plus.disabled = out || noPrice || (p.stock !== null && cur >= p.stock) || cur >= 999;
+    }
+    minus.onclick = function (e) { e.stopPropagation(); setQty(p.id, (state.cart[p.id] || 0) - 1); haptic('light'); sync(); onChange(); };
+    plus.onclick = function (e) {
+      e.stopPropagation();
+      var before = state.cart[p.id] || 0;
+      setQty(p.id, before + 1);
+      if ((state.cart[p.id] || 0) === before && p.stock !== null) toast('នៅសល់តែ ' + p.stock + ' ' + p.unit);
+      haptic('light'); sync(); onChange();
+    };
+    wrap.appendChild(minus); wrap.appendChild(q); wrap.appendChild(plus);
+    sync();
+    return wrap;
+  }
+
+  function rowLabel(p) { return p.variant || p.name_kh || p.name_en || p.id; }
+
+  /* ----------------------------- Sheet ------------------------------- */
+  function openSheet(g) {
+    state.openGroup = g;
+    imgOrPlaceholder($('sheetThumb'), g.image, emojiFor(g.category));
+    $('sheetTitle').textContent = g.name;
+    var list = $('sheetList');
+    list.innerHTML = '';
+    var desc = g.items.map(function (p) { return p.description; }).filter(Boolean)[0];
+    if (desc) list.appendChild(el('div', 'desc', desc));
+    var perItemImages = g.items.some(function (p) { return p.image && p.image !== g.image; }) || !g.items[0].variant;
+    g.items.forEach(function (p) {
+      var row = el('div', 'row');
+      if (perItemImages) {
+        var th = el('div', 'rthumb');
+        imgOrPlaceholder(th, p.image, emojiFor(p.category));
+        row.appendChild(th);
+      }
+      var lbl = el('div', 'lbl');
+      lbl.appendChild(el('b', p.variant ? 'latin' : '', rowLabel(p)));
+      var out = p.stock !== null && p.stock <= 0;
+      var sub = out ? 'Out of Stock / អស់ពីស្តុក' :
+        money(p.price) + ' / ' + (p.unit || '') + (p.stock !== null && p.stock <= 5 ? ' · នៅសល់ ' + p.stock : '');
+      lbl.appendChild(el('small', out ? 'oos' : '', sub));
+      row.appendChild(lbl);
+      row.appendChild(stepper(p, updateSheetSum));
+      list.appendChild(row);
+    });
+    updateSheetSum();
+    $('backdrop').hidden = false;
+    $('sheet').hidden = false;
+    list.scrollTop = 0;
+  }
+
+  function updateSheetSum() {
+    var g = state.openGroup;
+    if (!g) return;
+    var sum = $('sheetSum');
+    sum.innerHTML = '';
+    sum.appendChild(document.createTextNode(groupQty(g) + ' ' + (g.unit || '') + ' · '));
+    sum.appendChild(el('span', 'amt latin', money(groupCents(g) / 100)));
+  }
+
+  function closeSheet() {
+    $('backdrop').hidden = true;
+    $('sheet').hidden = true;
+    state.openGroup = null;
+    renderGrid();
+    renderCartbar();
+  }
+
+  /* ---------------------------- Checkout ----------------------------- */
+  function showView(v) {
+    state.view = v;
+    $('viewHome').hidden = v !== 'home';
+    $('viewCheckout').hidden = v !== 'checkout';
+    $('viewDone').hidden = v !== 'done';
+    $('btnBack').hidden = v !== 'checkout';
+    $('logo').hidden = v === 'checkout';
+    $('shopSub').textContent = v === 'checkout' ? 'ពិនិត្យ និងបញ្ជាក់ការកុម្ម៉ង់' : 'ជ្រើសផលិតផល និងទំហំ';
+    try {
+      if (tg && tg.BackButton) { if (v === 'checkout') tg.BackButton.show(); else tg.BackButton.hide(); }
+    } catch (e) {}
+    window.scrollTo(0, 0);
+    renderCartbar();
+  }
+
+  function renderCheckout() {
+    var list = $('cartList');
+    list.innerHTML = '';
+    var ids = Object.keys(state.cart).filter(function (id) { return state.byId[id]; });
+    if (!ids.length) {
+      list.appendChild(el('div', 'state', 'កន្ត្រកទំនេរ'));
+    }
+    ids.forEach(function (id) {
+      var p = state.byId[id];
+      var row = el('div', 'row');
+      var lbl = el('div', 'lbl');
+      lbl.appendChild(el('b', '', p.variant ? (p.group + ' · ' + p.variant) : rowLabel(p)));
+      lbl.appendChild(el('small', '', money(p.price) + ' × ' + state.cart[id] + ' = ' + money(cents(p.price) * state.cart[id] / 100)));
+      row.appendChild(lbl);
+      row.appendChild(stepper(p, function () { renderCheckout(); }));
+      list.appendChild(row);
+    });
+    renderTotals();
+    renderCartbar();
+  }
+
+  function renderTotals() {
+    var t = cartTotals();
+    var box = $('totals');
+    box.innerHTML = '';
+    function line(a, b, cls) {
+      var d = el('div', cls || '');
+      d.appendChild(el('span', '', a));
+      d.appendChild(el('span', 'latin', b));
+      box.appendChild(d);
+    }
+    line('សរុបរង (' + t.qty + ')', money(t.sub));
+    line('ថ្លៃដឹកជញ្ជូន', t.fee === 0 && t.qty > 0 ? 'ឥតគិតថ្លៃ' : money(t.fee));
+    line('សរុបត្រូវបង់', money(t.total), 'grand');
+    box.appendChild(el('div', 'khr', '≈ ' + khr(t.khr) + ' (អត្រា ' + state.settings.exchange_rate + ')'));
+    if (t.freeMin > 0 && t.sub < t.freeMin && t.qty > 0) {
+      box.appendChild(el('div', 'khr', '🎁 ទិញបន្ថែម ' + money(t.freeMin - t.sub) + ' ដើម្បីដឹកឥតគិតថ្លៃ'));
+    }
+  }
+
+  function fillForm() {
+    var sel = $('fProvince');
+    if (!sel.options.length) {
+      var o0 = el('option', '', '— ជ្រើសរើស —'); o0.value = ''; sel.appendChild(o0);
+      PROVINCES.forEach(function (p) { var o = el('option', '', p); o.value = p; sel.appendChild(o); });
+    }
+    var pr = state.profile || {};
+    if (!$('fName').value) $('fName').value = pr.full_name || '';
+    if (!$('fPhone').value) $('fPhone').value = pr.phone_number || '';
+    if (!$('fAddress').value) $('fAddress').value = pr.delivery_address || '';
+    if (!sel.value && pr.city_province && PROVINCES.indexOf(pr.city_province) >= 0) sel.value = pr.city_province;
+  }
+
+  function normalizePhone(v) {
+    var p = String(v || '').replace(/[\s\-().]/g, '');
+    if (p.indexOf('+855') === 0) p = '0' + p.slice(4);
+    else if (p.indexOf('855') === 0 && p.length >= 11) p = '0' + p.slice(3);
+    if (p.indexOf('00') === 0) p = p.slice(1);
+    return /^0[1-9]\d{7,8}$/.test(p) ? p : '';
+  }
+
+  function validate() {
+    var ok = true;
+    function set(id, msg) { $(id).textContent = msg || ''; if (msg) ok = false; }
+    var name = $('fName').value.trim();
+    set('eName', name.length < 2 ? 'សូមបញ្ចូលឈ្មោះ' : '');
+    set('ePhone', normalizePhone($('fPhone').value) ? '' : 'លេខទូរស័ព្ទមិនត្រឹមត្រូវ (ឧ. 012345678)');
+    set('eProvince', $('fProvince').value ? '' : 'សូមជ្រើសរើសខេត្ត/រាជធានី');
+    set('eAddress', $('fAddress').value.trim().length < 5 ? 'សូមបញ្ចូលអាសយដ្ឋានឲ្យបានច្បាស់' : '');
+    return ok;
+  }
+
+  function showAlert(msg) {
+    var a = $('checkoutAlert');
+    a.textContent = msg;
+    a.hidden = !msg;
+    if (msg) window.scrollTo(0, 0);
+  }
+
+  function submitOrder() {
+    if (state.submitting) return;
+    showAlert('');
+    if (cartTotals().qty === 0) { toast('កន្ត្រកទំនេរ'); return; }
+    if (!validate()) { haptic('heavy'); toast('សូមបំពេញព័ត៌មានឲ្យបានត្រឹមត្រូវ'); return; }
+    if (!state.orderKey) { state.orderKey = uuid(); saveCart(); }
+    state.submitting = true;
+    renderCartbar();
+    var items = Object.keys(state.cart).map(function (id) { return { product_id: id, qty: state.cart[id] }; });
+    api({
+      action: 'createOrder',
+      client_order_key: state.orderKey,
+      items: items,
+      customer: {
+        full_name: $('fName').value.trim(),
+        phone_number: $('fPhone').value.trim(),
+        city_province: $('fProvince').value,
+        delivery_address: $('fAddress').value.trim()
+      },
+      note: $('fNote').value.trim()
+    }).then(function (res) {
+      state.submitting = false;
+      if (res && res.ok) {
+        try { if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success'); } catch (e) {}
+        state.cart = {};
+        state.orderKey = null;
+        saveCart();
+        $('doneId').textContent = res.order_id + ' · ' + money(res.total_usd);
+        showView('done');
+        return;
+      }
+      if (res && res.error === 'stock') {
+        showAlert(res.message || 'ស្តុកមិនគ្រប់');
+        refreshCatalog();
+      } else {
+        showAlert((res && res.message) || ERROR_KH);
+      }
+      renderCartbar();
+    }).catch(function () {
+      state.submitting = false;
+      showAlert(ERROR_KH);
+      renderCartbar();
+    });
+  }
+
+  /* ------------------------------ Boot ------------------------------- */
+  function refreshCatalog() {
+    return api({ action: 'bootstrap' }).then(function (res) {
+      if (!res || !res.ok) throw new Error((res && res.message) || 'bootstrap failed');
+      state.settings = res.settings || state.settings;
+      state.profile = res.profile || {};
+      if (res.shop && res.shop.name) { $('shopName').textContent = res.shop.name; document.title = res.shop.name; }
+      buildCatalog(res.products || []);
+      $('homeState').hidden = state.groups.length > 0;
+      if (!state.groups.length) $('homeState').textContent = 'មិនទាន់មានផលិតផលទេ។';
+      renderTabs();
+      renderGrid();
+      if (state.view === 'checkout') renderCheckout();
+      renderCartbar();
+      return res;
+    });
+  }
+
+  function fatal(msg) {
+    var s = $('homeState');
+    s.hidden = false;
+    s.textContent = msg;
+  }
+
+  function boot() {
+    if (tg) {
+      try {
+        tg.ready();
+        tg.expand();
+        if (tg.setHeaderColor) tg.setHeaderColor('#17212b');
+        if (tg.setBackgroundColor) tg.setBackgroundColor('#17212b');
+        if (tg.BackButton) tg.BackButton.onClick(function () { showView('home'); renderGrid(); });
+      } catch (e) {}
+    }
+    if (!tg || !tg.initData) { fatal('សូមបើកទំព័រនេះតាមរយៈប៊ូតុង 🛍 ក្នុង Telegram Bot។'); return; }
+    if (!API_VALID) { fatal('ការកំណត់ API មិនត្រឹមត្រូវ។ សូមបើកតាមប៊ូតុងក្នុង Bot ម្តងទៀត។'); return; }
+    loadCart();
+    refreshCatalog().catch(function (err) {
+      fatal(String(err && err.message || '').indexOf('Telegram') >= 0 ? err.message : ERROR_KH);
+    });
+  }
+
+  $('sheetClose').onclick = closeSheet;
+  $('sheetDone').onclick = closeSheet;
+  $('backdrop').onclick = closeSheet;
+  $('btnBack').onclick = function () { showView('home'); renderGrid(); };
+  $('btnCartbar').onclick = function () {
+    if (state.view === 'home') { fillForm(); showAlert(''); showView('checkout'); renderCheckout(); }
+    else if (state.view === 'checkout') submitOrder();
+  };
+  $('btnClose').onclick = function () { try { tg.close(); } catch (e) { showView('home'); } };
+  $('btnMore').onclick = function () { showView('home'); renderGrid(); refreshCatalog().catch(function () {}); };
+  ['fName', 'fPhone', 'fAddress', 'fProvince'].forEach(function (id) {
+    $(id).addEventListener('input', function () { var e = $('e' + id.slice(1)); if (e) e.textContent = ''; });
+  });
+
+  boot();
+})();
+</script>
+</body>
+</html>
