@@ -89,6 +89,8 @@
   .pinbox { font-size:30px; font-weight:700; letter-spacing:6px; text-align:center; padding:14px; background:var(--accent-soft); color:var(--accent); border-radius:12px; margin:12px 0; }
   #toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:#1d2433; color:#fff; padding:10px 16px; border-radius:12px; z-index:30; opacity:0; transition:opacity .2s; pointer-events:none; max-width:92vw; white-space:pre-line; }
   #toast.show { opacity:1; }
+  .prev { white-space:pre-wrap; background:#f7f8fc; border:1px dashed var(--line); border-radius:10px; padding:10px 12px; font-size:14px; margin-top:8px; }
+  .warn { color:var(--bad); background:var(--bad-soft); border-radius:10px; padding:8px 12px; font-size:13px; margin-top:8px; }
   .empty { color:var(--muted); padding:18px; text-align:center; }
   .spin { display:inline-block; width:16px; height:16px; border:2px solid #ddd; border-top-color:var(--accent); border-radius:50%; animation:sp .8s linear infinite; vertical-align:middle; }
   @keyframes sp { to { transform:rotate(360deg); } }
@@ -227,7 +229,7 @@
     showOnly('vApp');
     $('whoName').innerHTML = '<b>' + esc(S.user.name) + '</b> · ' + esc(S.user.system_id) + ' (' + (isAdmin() ? 'Admin' : 'Sale') + ')';
     Promise.all([api('adm.stores.list'), api('adm.products.list'), api('adm.templates.list')]).then(function (r) {
-      S.stores = r[0].stores || []; S.sales = r[0].sales || []; S.products = r[1].products || []; S.templates = r[2].templates || [];
+      S.stores = r[0].stores || []; S.sales = r[0].sales || []; S.products = r[1].products || []; S.templates = r[2].templates || []; S.company = r[2].company || 'LK';
       go(S.view || 'overview');
     }).catch(fail);
   }
@@ -488,6 +490,7 @@
       '<label class="f">ចំណងជើង (សម្រាប់ខ្លួនឯង)</label><input id="bTitle" maxlength="80" value="' + esc(d.title) + '" placeholder="ឧ. ប្រូម៉ូសិនខែធ្នូ">' +
       '<label class="f">សារ</label><textarea id="bText" maxlength="4000" placeholder="ជម្រាបសួរបង {owner_name} 🙏 ...">' + esc(d.text) + '</textarea>' +
       '<div class="hint">អថេរ: <code>{store_name}</code> ឈ្មោះហាង · <code>{owner_name}</code> ម្ចាស់ហាង · <code>{sale_name}</code> Sale · <code>{company}</code> ក្រុមហ៊ុន · សារ ≤ 1024 តួអក្សរ ពេលមានរូប នឹងនៅជាមួយរូប</div>' +
+      '<label class="f">👁 ហាងនឹងឃើញសារដូចនេះ</label><div class="prev" id="bPrev"></div><div class="warn" id="bWarn" hidden></div>' +
       '<label class="f">រូប (≤ 10)</label><input type="file" id="bFile" accept="image/jpeg,image/png" multiple><div class="thumbs" id="bThumbs"></div>' +
       '<label class="f">ផ្ញើទៅ</label><div class="tabs" id="bMode"></div><div class="checks" id="bVals"></div><div class="hint" id="bCount"></div>' +
       '<div class="row"><div class="grow"><label class="f">ម៉ោងផ្ញើ (ទទេ = ភ្លាមៗ ក្រោយអនុម័ត)</label><input type="datetime-local" id="bWhen" value="' + esc(d.scheduled_at ? d.scheduled_at.slice(0, 16).replace(' ', 'T') : '') + '"></div>' +
@@ -496,7 +499,7 @@
       '<button class="btn ghost" id="bSave">💾 រក្សាទុកព្រាង</button><button class="btn" id="bSend">' + (isAdmin() ? '📤 ផ្ញើ' : '📤 ស្នើ Admin អនុម័ត') + '</button></div></div>' +
       '<div class="card"><h3>បញ្ជីសារ</h3><div class="tabs" id="bF"></div><div id="bList"></div></div>';
     $('bType').value = d.type; $('bPin').checked = !!d.pin_message;
-    $('bTpl').onchange = function () { var t = S.templates.filter(function (x) { return x.template_id === $('bTpl').value; })[0]; if (t) { $('bText').value = t.body; if (BC_TYPE[t.kind]) $('bType').value = t.kind; else if (/^reorder/.test(t.kind)) $('bType').value = 'reorder'; } $('bTpl').value = ''; };
+    $('bTpl').onchange = function () { var t = S.templates.filter(function (x) { return x.template_id === $('bTpl').value; })[0]; if (t) { $('bText').value = t.body; if (BC_TYPE[t.kind]) $('bType').value = t.kind; else if (/^reorder/.test(t.kind)) $('bType').value = 'reorder'; } $('bTpl').value = ''; preview(); };
     function drawThumbs() {
       $('bThumbs').innerHTML = d.media.map(function (x, i) { return '<div class="t">' + (x.preview ? '<img src="' + x.preview + '">' : '🖼') + '<button data-rm="' + i + '">✕</button></div>'; }).join('');
       Array.prototype.forEach.call($('bThumbs').querySelectorAll('[data-rm]'), function (b) { b.onclick = function () { d.media.splice(Number(b.dataset.rm), 1); drawThumbs(); }; });
@@ -522,7 +525,14 @@
       Array.prototype.forEach.call($('bVals').querySelectorAll('input'), function (c) { c.onchange = function () { d.target.values = Array.prototype.filter.call($('bVals').querySelectorAll('input'), function (x) { return x.checked; }).map(function (x) { return x.value; }); count(); }; });
       count();
     }
-    function count() { var n = targetStores(d.target).length; $('bCount').innerHTML = 'ហាងនឹងទទួល: <b>' + n + '</b> (Active + មាន Group)'; }
+    function count() { var n = targetStores(d.target).length; $('bCount').innerHTML = 'ហាងនឹងទទួល: <b>' + n + '</b> (Active + មាន Group)'; preview(); }
+    function preview() {
+      var t = $('bText').value, list = targetStores(d.target), s0 = list[0];
+      var problem = checkText(t, list);
+      $('bPrev').textContent = s0 ? renderFor(t, s0) + '\n\n— ' + s0.store_name + (list.length > 1 ? ' (ហាងផ្សេងទៀតប្តូរឈ្មោះតាមហាង)' : '') : (t || '…');
+      $('bWarn').hidden = !problem; $('bWarn').textContent = problem ? '⛔ ' + problem : '';
+      $('bSend').disabled = !!problem;
+    }
     function collect() {
       d.type = $('bType').value; d.title = $('bTitle').value; d.text = $('bText').value; d.scheduled_at = $('bWhen').value; d.pin_message = $('bPin').checked;
       return { broadcast_id: d.broadcast_id, type: d.type, title: d.title, text: d.text, media_ids: d.media.map(function (x) { return x.file_id; }), target: d.target, scheduled_at: d.scheduled_at, pin_message: d.pin_message };
@@ -543,6 +553,7 @@
         });
       }).catch(function (e) { busy(btn, false); fail(e); });
     }
+    $('bText').oninput = preview;
     $('bSave').onclick = function () { save(false, this); };
     $('bSend').onclick = function () { var b = this; if (b.dataset.sure !== '1') { b.dataset.sure = '1'; b.textContent = 'ចុចម្តងទៀតដើម្បីបញ្ជាក់ (' + targetStores(d.target).length + ' ហាង)'; return; } save(true, b); };
     if ($('bNew')) $('bNew').onclick = function () { S.edit = null; vBroadcast(m); };
@@ -581,6 +592,18 @@
         };
       });
     }).catch(fail);
+  }
+  var VARS = ['store_name', 'owner_name', 'sale_name', 'company'];
+  function renderFor(t, s) {
+    var v = { store_name: s.store_name, owner_name: s.owner_name || s.store_name, sale_name: s.sale_name || '', company: S.company || 'LK' };
+    return String(t || '').replace(/\{(\w+)\}/g, function (m, k) { return v[k] ? v[k] : m; }).replace(/ {2,}/g, ' ');
+  }
+  function checkText(t, list) {
+    if (/\.{3}|…/.test(t)) return 'សារនៅមាន «...» ដែលមិនទាន់បំពេញ — សូមជំនួសដោយព័ត៌មានពិតមុនផ្ញើ';
+    var bad = (t.match(/\{(\w+)\}/g) || []).map(function (m) { return m.slice(1, -1); }).filter(function (k) { return VARS.indexOf(k) < 0; });
+    if (bad.length) return 'អថេរមិនស្គាល់: {' + bad.join('}, {') + '}';
+    if (/\{sale_name\}/.test(t)) { var miss = list.filter(function (s) { return !s.sale_name; }); if (miss.length) return 'ហាង ' + miss.length + ' មិនទាន់មាន Sale (ឧ. ' + miss[0].store_name + ') សម្រាប់ {sale_name}'; }
+    return '';
   }
   function uniq(a) { return a.filter(function (x, i) { return a.indexOf(x) === i; }).sort(); }
   function uploadImage(file) {
