@@ -44,11 +44,20 @@
   nav button.on { background:var(--accent-soft); color:var(--accent); font-weight:600; }
   nav .badge { margin-left:auto; background:var(--accent); color:#fff; border-radius:999px; font-size:11px; padding:1px 7px; }
   main { flex:1; padding:20px; max-width:1200px; min-width:0; }
+  .sk { background:#eceef4; border-radius:10px; }
+  .sk-h { height:22px; width:180px; margin-bottom:16px; }
+  .sk-row { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:12px; margin-bottom:16px; }
+  .sk-k { height:74px; } .sk-card { height:180px; }
+  .more-list button { display:flex; width:100%; gap:10px; padding:14px 8px; border:0; border-bottom:1px solid var(--line); background:none; font-size:15px; cursor:pointer; text-align:left; }
   @media (max-width: 820px) {
     .wrap { display:block; }
-    nav { width:auto; display:flex; overflow-x:auto; border-right:0; border-bottom:1px solid var(--line); padding:6px; position:sticky; top:61px; z-index:4; }
-    nav button { width:auto; white-space:nowrap; flex:none; }
-    main { padding:14px; }
+    nav { width:auto; position:fixed; left:0; right:0; bottom:0; z-index:10; display:grid; grid-template-columns:repeat(5,1fr); border-right:0; border-top:1px solid var(--line);
+      padding:4px 2px calc(4px + env(safe-area-inset-bottom)); background:#fff; }
+    nav button { flex-direction:column; gap:2px; padding:6px 2px; font-size:11px; text-align:center; justify-content:center; position:relative; }
+    nav button .ic { font-size:20px; line-height:1; }
+    nav .badge { position:absolute; top:2px; right:14%; margin:0; }
+    main { padding:14px 14px 84px; }
+    .top .who a { display:none; }
   }
   h2 { font-size:19px; margin:0 0 14px; }
   .card { background:var(--card); border:1px solid var(--line); border-radius:var(--r); padding:16px; margin-bottom:16px; }
@@ -156,7 +165,7 @@
   var qApi = new URLSearchParams(location.search).get('api');
   var API = qApi && /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(qApi) ? qApi : DEFAULT_API;
 
-  var S = { token: null, user: null, view: 'overview', stores: [], sales: [], products: [], templates: [], summary: null, edit: null };
+  var S = { cache: {}, refresh: null, token: null, user: null, view: 'overview', stores: [], sales: [], products: [], templates: [], summary: null, edit: null };
   var $ = function (id) { return document.getElementById(id); };
   function esc(v) { return String(v === null || v === undefined ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function money(n) { var x = Number(n); return isFinite(x) ? '$' + x.toFixed(2) : 'N/A'; }
@@ -171,11 +180,25 @@
       body: JSON.stringify({ action: action, token: S.token, data: data || {} }) })
       .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(function (j) {
+        if (!READS.test(action)) S.cache = {}; // any change → fresh data everywhere
         if (!j.ok && j.error === 'auth') { logout(true); throw new Error(j.message); }
         if (!j.ok && j.error === 'must_change') { showPin(); throw new Error(j.message); }
         return j;
       });
   }
+  var READS = /^adm\.(login|me|boot|summary|stores\.list|products\.list|templates\.list|orders\.list|stock\.store|stock\.warehouse|po\.list|bc\.list|users\.list|report\.excel)$/;
+  /** Stale-while-revalidate: draw cached data at once, refresh in the background, redraw only if it changed. */
+  function swr(action, data, render) {
+    var key = action + JSON.stringify(data || {}), c = S.cache[key], view = S.view;
+    if (c) render(c.v, true);
+    if (c && Date.now() - c.t < 15000) return Promise.resolve(c.v);
+    return api(action, data).then(function (j) {
+      S.cache[key] = { t: Date.now(), v: j };
+      if (S.view === view && (!c || JSON.stringify(c.v) !== JSON.stringify(j))) render(j, false);
+      return j;
+    });
+  }
+  function expire(action, data) { var c = S.cache[action + JSON.stringify(data || {})]; if (c) c.t = 0; }
   function fail(e) { toast((e && e.message) || 'សូមអភ័យទោស ប្រព័ន្ធមានជួបបញ្ហាបច្ចេកទេស សូមព្យាយាមម្តងទៀត។'); }
   function busy(btn, on) { if (!btn) return; btn.disabled = on; if (on) { btn.dataset.t = btn.innerHTML; btn.innerHTML = '<span class="spin"></span>'; } else if (btn.dataset.t) btn.innerHTML = btn.dataset.t; }
 
@@ -214,7 +237,7 @@
   };
   function logout(expired) {
     if (S.token && !expired) api('adm.logout').catch(function () {});
-    S.token = null; S.user = null; store('lk_token', null);
+    S.token = null; S.user = null; S.cache = {}; S.refresh = null; store('lk_token', null); store('lk_boot', null);
     showOnly('vLogin');
     if (expired) $('lErr').textContent = 'Session ផុតកំណត់ — សូមចូលម្តងទៀត';
   }
@@ -222,31 +245,64 @@
 
   /* ----------------------------- app shell ----------------------------- */
   var NAV = [
-    ['overview', '📊', 'ទិដ្ឋភាព'], ['stores', '🏪', 'ហាង'], ['orders', '🧾', 'Order'], ['stock', '📦', 'ស្តុក'],
-    ['broadcast', '📣', 'ផ្ញើសារ'], ['reports', '📈', 'របាយការណ៍'], ['users', '👥', 'អ្នកប្រើ', true], ['account', '🔐', 'PIN របស់ខ្ញុំ'],
+    ['overview', '📊', 'ទិដ្ឋភាព'], ['broadcast', '📣', 'ផ្ញើសារ'], ['stores', '🏪', 'ហាង'], ['orders', '🧾', 'Order'], ['stock', '📦', 'ស្តុក'],
+    ['reports', '📈', 'របាយការណ៍'], ['users', '👥', 'អ្នកប្រើ', true], ['account', '🔐', 'PIN របស់ខ្ញុំ'],
   ];
+  var MOBILE_MAIN = ['overview', 'broadcast', 'stores', 'orders'];
+  var mq = window.matchMedia('(max-width: 820px)');
+  if (mq.addEventListener) mq.addEventListener('change', function () { if (S.user) renderNav(navBadges()); });
+  function applyBoot(b) {
+    S.stores = b.stores || []; S.sales = b.sales || []; S.products = b.products || []; S.templates = b.templates || []; S.company = b.company || 'LK';
+    S.summary = b.summary; if (b.user) S.user = b.user;
+    var t = Date.now();
+    S.cache['adm.summary{}'] = { t: t, v: b.summary };
+    S.cache['adm.stores.list{}'] = { t: t, v: { ok: true, stores: S.stores, sales: S.sales } };
+  }
   function enterApp() {
     showOnly('vApp');
     $('whoName').innerHTML = '<b>' + esc(S.user.name) + '</b> · ' + esc(S.user.system_id) + ' (' + (isAdmin() ? 'Admin' : 'Sale') + ')';
-    Promise.all([api('adm.stores.list'), api('adm.products.list'), api('adm.templates.list')]).then(function (r) {
-      S.stores = r[0].stores || []; S.sales = r[0].sales || []; S.products = r[1].products || []; S.templates = r[2].templates || []; S.company = r[2].company || 'LK';
-      go(S.view || 'overview');
+    var drawn = false, saved = null;
+    try { saved = JSON.parse(store('lk_boot') || 'null'); } catch (e) { saved = null; }
+    if (saved && saved.user && saved.user.system_id === S.user.system_id) { applyBoot(saved); expire('adm.summary'); expire('adm.stores.list'); go(S.view || 'overview'); drawn = true; }
+    api('adm.boot').then(function (b) {
+      applyBoot(b);
+      try { store('lk_boot', JSON.stringify(b)); } catch (e) { /* storage full: skip */ }
+      if (!drawn) go(S.view || 'overview'); else { renderNav(navBadges()); if (S.refresh) S.refresh(); }
     }).catch(fail);
   }
+  setInterval(function () { if (S.token && S.refresh && document.visibilityState === 'visible' && !$('modalRoot').firstChild) S.refresh(); }, 30000);
   function renderNav(badges) {
-    $('nav').innerHTML = NAV.filter(function (n) { return !n[3] || isAdmin(); }).map(function (n) {
+    var items = NAV.filter(function (n) { return !n[3] || isAdmin(); });
+    var btn = function (n) {
       var b = badges && badges[n[0]] ? '<span class="badge">' + badges[n[0]] + '</span>' : '';
-      return '<button data-v="' + n[0] + '" class="' + (S.view === n[0] ? 'on' : '') + '">' + n[1] + ' ' + n[2] + b + '</button>';
-    }).join('');
-    Array.prototype.forEach.call($('nav').querySelectorAll('button'), function (b) { b.onclick = function () { go(b.dataset.v); }; });
+      return '<button data-v="' + n[0] + '" class="' + (S.view === n[0] ? 'on' : '') + '"><span class="ic">' + n[1] + '</span> ' + n[2] + b + '</button>';
+    };
+    if (mq.matches) {
+      var rest = items.filter(function (n) { return MOBILE_MAIN.indexOf(n[0]) < 0; });
+      var restOn = rest.some(function (n) { return n[0] === S.view; });
+      var restBadge = rest.reduce(function (t, n) { return t + ((badges && badges[n[0]]) || 0); }, 0);
+      $('nav').innerHTML = items.filter(function (n) { return MOBILE_MAIN.indexOf(n[0]) >= 0; }).map(btn).join('') +
+        '<button data-more="1" class="' + (restOn ? 'on' : '') + '"><span class="ic">☰</span> ច្រើនទៀត' + (restBadge ? '<span class="badge">' + restBadge + '</span>' : '') + '</button>';
+      $('nav').querySelector('[data-more]').onclick = function () {
+        modal('<div class="more-list">' + rest.map(function (n) { return '<button data-v="' + n[0] + '">' + n[1] + ' ' + n[2] + (badges && badges[n[0]] ? ' <span class="chip c-acc">' + badges[n[0]] + '</span>' : '') + '</button>'; }).join('') +
+          '<button data-out="1">🚪 ចាកចេញ</button></div>', function (box) {
+          Array.prototype.forEach.call(box.querySelectorAll('[data-v]'), function (b) { b.onclick = function () { closeModal(); go(b.dataset.v); }; });
+          box.querySelector('[data-out]').onclick = function () { closeModal(); logout(false); };
+        });
+      };
+    } else {
+      $('nav').innerHTML = items.map(btn).join('');
+    }
+    Array.prototype.forEach.call($('nav').querySelectorAll('button[data-v]'), function (b) { b.onclick = function () { go(b.dataset.v); }; });
   }
   function navBadges() {
     var s = S.summary || {};
     return { broadcast: (s.suggested || 0) + (s.pending_approval || 0), stock: (s.due || 0) + (s.overdue || 0) + (s.po_draft || 0), stores: s.stores_pending || 0 };
   }
   function go(v) {
-    S.view = v; renderNav(navBadges());
-    var m = $('main'); m.innerHTML = '<div class="empty"><span class="spin"></span></div>';
+    S.view = v; S.refresh = null; renderNav(navBadges());
+    var m = $('main');
+    m.innerHTML = '<div class="sk sk-h"></div><div class="sk-row"><div class="sk sk-k"></div><div class="sk sk-k"></div><div class="sk sk-k"></div></div><div class="sk sk-card"></div>';
     ({ overview: vOverview, stores: vStores, orders: vOrders, stock: vStock, broadcast: vBroadcast, reports: vReports, users: vUsers, account: vAccount }[v] || vOverview)(m);
     window.scrollTo(0, 0);
   }
@@ -263,7 +319,8 @@
 
   /* ----------------------------- overview ----------------------------- */
   function vOverview(m) {
-    api('adm.summary').then(function (s) {
+    S.refresh = function () { expire('adm.summary'); vOverview(m); };
+    swr('adm.summary', {}, function (s) {
       S.summary = s; renderNav(navBadges());
       var k = function (v, l, go2) { return '<div class="kpi' + (go2 ? ' click" data-go="' + go2 : '') + '"><div class="l">' + l + '</div><div class="v">' + v + '</div></div>'; };
       m.innerHTML = '<h2>ទិដ្ឋភាពទូទៅ</h2><div class="kpis">' +
@@ -284,7 +341,7 @@
 
   /* ----------------------------- stores ----------------------------- */
   function saleName(id) { var s = S.sales.filter(function (x) { return x.system_id === id; })[0]; return s ? s.name : (id || '—'); }
-  function reloadStores() { return api('adm.stores.list').then(function (j) { S.stores = j.stores || []; S.sales = j.sales || []; }); }
+  function reloadStores(after) { return swr('adm.stores.list', {}, function (j) { S.stores = j.stores || []; S.sales = j.sales || []; if (after) after(); }); }
   function vStores(m) {
     var filter = { q: '', st: '' };
     function draw() {
@@ -296,7 +353,7 @@
         list.map(function (s) {
           return '<tr class="' + (isAdmin() ? 'click' : '') + '" data-id="' + esc(s.store_id) + '"><td>' + esc(s.store_id) + '</td><td><b>' + esc(s.store_name) + '</b>' +
             (s.owner_name ? '<div class="hint">' + esc(s.owner_name) + (s.phone ? ' · ' + esc(s.phone) : '') + '</div>' : '') + '</td><td>' + esc(s.province || '—') + '</td><td>' +
-            esc(s.sale_name || s.sale_id || '—') + '</td><td>' + esc(s.tier || '—') + '</td><td>' + (s.chat_id ? '✅' : '—') + '</td><td>' + chip(STORE_ST, s.status) + '</td></tr>';
+            esc(s.sale_name || s.sale_id || '—') + '</td><td>' + esc(s.tier || '—') + '</td><td>' + (s.has_group ? '✅' : '—') + '</td><td>' + chip(STORE_ST, s.status) + '</td></tr>';
         }).join('') + '</table>' : '<div class="empty">មិនមានហាង</div>';
       if (isAdmin()) Array.prototype.forEach.call($('stTbl').querySelectorAll('tr[data-id]'), function (tr) {
         tr.onclick = function () { editStore(S.stores.filter(function (s) { return s.store_id === tr.dataset.id; })[0]); };
@@ -310,7 +367,7 @@
     $('stQ').oninput = function () { filter.q = this.value; draw(); };
     $('stS').onchange = function () { filter.st = this.value; draw(); };
     if ($('stAdd')) $('stAdd').onclick = function () { editStore(null); };
-    reloadStores().then(draw).catch(fail);
+    reloadStores(draw).catch(fail);
   }
   function editStore(s) {
     s = s || { store_name: '', province: '', owner_name: '', phone: '', sale_id: '', tier: '', status: 'Active', note: '' };
@@ -389,7 +446,7 @@
     };
     function loadList() {
       $('oList').innerHTML = '<div class="empty"><span class="spin"></span></div>';
-      api('adm.orders.list', { from: $('lFrom').value, to: $('lTo').value }).then(function (j) {
+      swr('adm.orders.list', { from: $('lFrom').value, to: $('lTo').value }, function (j) {
         $('oList').innerHTML = j.orders.length ? '<table class="tbl"><tr><th>កាលបរិច្ឆេទ</th><th>Order</th><th>ហាង</th><th>ផលិតផល</th><th class="num">សរុប</th><th></th></tr>' +
           j.orders.map(function (o) {
             return '<tr><td>' + esc(o.order_date) + '</td><td>' + esc(o.order_id) + (o.status === 'Cancelled' ? ' ' + chip({ Cancelled: ['បោះបង់', 'c-mute'] }, 'Cancelled') : '') + '</td><td>' + esc(o.store_name) + '</td><td style="max-width:340px">' + esc(o.items) +
@@ -417,7 +474,7 @@
     var body = $('skBody');
     body.innerHTML = '<div class="empty"><span class="spin"></span></div>';
     if (tab === 'store') {
-      api('adm.stock.store', {}).then(function (j) {
+      swr('adm.stock.store', {}, function (j) {
         var f = S.skFilter || '';
         var rows = j.rows.filter(function (r) { return !f || r.status === f; });
         body.innerHTML = '<div class="card"><div class="row"><div class="tabs grow" id="skF" style="margin:0"></div>' + (isAdmin() ? '<button class="btn sm" id="skRun">▶ វិភាគឥឡូវ</button>' : '') + '</div>' +
@@ -435,7 +492,7 @@
         };
       }).catch(fail);
     } else if (tab === 'wh') {
-      api('adm.stock.warehouse').then(function (j) {
+      swr('adm.stock.warehouse', {}, function (j) {
         var rows = j.rows.slice().sort(function (a, b) { var o = { LOW: 0, OK: 1, NO_SALES: 2, UNTRACKED: 3 }; return o[a.status] - o[b.status]; });
         body.innerHTML = '<div class="card"><p class="hint">ចំណុចបញ្ជាទិញ = លក់ក្នុងមួយថ្ងៃ × (ថ្ងៃដឹកមកដល់ + ថ្ងៃបម្រុង)។ កែ lead_time_days, safety_days, supplier ក្នុង Sheet <b>products</b> · ស្តុកឃ្លាំង = column stock_qty (ទទេ = មិនតាមដាន)។</p><div class="scroll"><table class="tbl"><tr><th>ផលិតផល</th><th class="num">ស្តុក</th><th class="num">លក់ 28 ថ្ងៃ</th><th class="num">/ថ្ងៃ</th><th class="num">ចំណុចបញ្ជាទិញ</th><th class="num">គ្រប់</th><th>ស្ថានភាព</th><th class="num">PO ណែនាំ</th></tr>' +
           rows.map(function (r) {
@@ -474,7 +531,7 @@
   function emptyDraft() { return { broadcast_id: '', type: 'promotion', title: '', text: '', media: [], target: { mode: isAdmin() ? 'all' : 'stores', values: [] }, scheduled_at: '', pin_message: false }; }
   function targetStores(t) {
     return S.stores.filter(function (s) {
-      if (s.status !== 'Active' || !s.chat_id) return false;
+      if (s.status !== 'Active' || !s.has_group) return false;
       if (!isAdmin() && s.sale_id !== S.user.system_id) return false;
       var v = t.values || [];
       return t.mode === 'all' || (t.mode === 'province' && v.indexOf(s.province) >= 0) || (t.mode === 'sale' && v.indexOf(s.sale_id) >= 0) ||
@@ -514,7 +571,7 @@
     function drawTarget() {
       $('bMode').innerHTML = modes.map(function (x) { return '<button data-m="' + x[0] + '" class="' + (d.target.mode === x[0] ? 'on' : '') + '">' + x[1] + '</button>'; }).join('');
       Array.prototype.forEach.call($('bMode').querySelectorAll('button'), function (b) { b.onclick = function () { d.target = { mode: b.dataset.m, values: [] }; drawTarget(); }; });
-      var pool = S.stores.filter(function (s) { return s.status === 'Active' && s.chat_id && (isAdmin() || s.sale_id === S.user.system_id); });
+      var pool = S.stores.filter(function (s) { return s.status === 'Active' && s.has_group && (isAdmin() || s.sale_id === S.user.system_id); });
       var opts = [];
       if (d.target.mode === 'province') opts = uniq(pool.map(function (s) { return s.province; }).filter(Boolean)).map(function (p) { return [p, p]; });
       if (d.target.mode === 'sale') opts = S.sales.map(function (s) { return [s.system_id, s.name]; });
@@ -562,7 +619,9 @@
     var fl = [['', 'ទាំងអស់'], ['Suggested', 'Bot ណែនាំ'], ['Pending_Approval', 'រង់ចាំអនុម័ត'], ['Approved', 'រង់ចាំផ្ញើ'], ['Sent', 'បានផ្ញើ'], ['Rejected', 'បដិសេធ']];
     $('bF').innerHTML = fl.map(function (x) { return '<button data-f="' + x[0] + '" class="' + (listFilter === x[0] ? 'on' : '') + '">' + x[1] + '</button>'; }).join('');
     Array.prototype.forEach.call($('bF').querySelectorAll('button'), function (b) { b.onclick = function () { S.bcFilter = b.dataset.f; vBroadcast(m); }; });
-    api('adm.bc.list', { status: listFilter }).then(function (j) {
+    S.refresh = function () { expire('adm.bc.list', { status: listFilter }); loadBcList(); };
+    loadBcList();
+    function loadBcList() { return swr('adm.bc.list', { status: listFilter }, function (j) {
       $('bList').innerHTML = j.broadcasts.length ? j.broadcasts.map(function (b) {
         var mine = isAdmin() || b.owner_sale_id === S.user.system_id || b.created_by === S.user.system_id;
         var acts = '';
@@ -591,7 +650,7 @@
           call.then(function (r) { toast(r.ok ? '✅ រួចរាល់' : r.message); vBroadcast(m); }).catch(function (e) { busy(btn, false); fail(e); });
         };
       });
-    }).catch(fail);
+    }).catch(fail); }
   }
   var VARS = ['store_name', 'owner_name', 'sale_name', 'company'];
   function renderFor(t, s) {
@@ -646,7 +705,7 @@
   /* ----------------------------- users ----------------------------- */
   function vUsers(m) {
     if (!isAdmin()) return vOverview(m);
-    api('adm.users.list').then(function (j) {
+    swr('adm.users.list', {}, function (j) {
       m.innerHTML = '<h2>អ្នកប្រើ</h2><div class="card"><div class="row"><p class="hint grow" style="margin:0">Sale ចូល Dashboard ដោយ System ID + PIN។ ដើម្បីទទួលសាររំលឹក និង /excel ក្នុង Telegram Sale ត្រូវផ្ញើ <b>/start</b> ទៅ Bot ហើយវាយ <b>/myid</b> ដើម្បីដឹង Telegram User ID។</p><button class="btn" id="uAdd">+ អ្នកប្រើ</button></div>' +
         '<div class="scroll"><table class="tbl" style="margin-top:10px"><tr><th>System ID</th><th>ឈ្មោះ</th><th>តួនាទី</th><th>Telegram ID</th><th>ស្ថានភាព</th><th>ចូលចុងក្រោយ</th><th></th></tr>' +
         j.users.map(function (u) {
